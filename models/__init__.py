@@ -12,18 +12,8 @@ class Seat:
 
 class Carriage(ABC):
     def __init__(self, seats, price):
-        self.seats = [Seat() for _ in range(seats)]
+        self.seats = seats
         self.price = price
-
-    @abstractmethod
-    def get_details(self):
-        pass
-
-    def set_price(self, new_price):
-        self.price = new_price
-
-    def set_seats(self, new_seats):
-        self.seats = new_seats
 
 
 class SeatCarriage(Carriage):
@@ -64,6 +54,9 @@ class FirstClassCarriage(Carriage):
 class Train:
     number: int
     carriages: dict[int, Carriage]
+
+    def seats(self):
+        return sum([carriage.seats for carriage in self.carriages.values()])
 
     def __init__(self, number, carriages):
         self.number = number
@@ -110,7 +103,7 @@ class TicketOffice:
         self.load_routes()
 
     def load_stations(self):
-        raw = open("Stations.conf", "r")
+        raw = open("Stations.conf", "r", encoding="utf-8")
 
         for rawline in raw:
             rawline = rawline.split(" ")
@@ -119,35 +112,40 @@ class TicketOffice:
         raw.close()
 
     def load_carriages(self, number):
-        config = ConfigParser(f"Train{number}.ini")
+        self.parser = ConfigParser()
+        self.parser.read(f"Train{number}.ini", encoding="utf-8")
 
         carriages = {
             "seat": [],
+            "econom": [],
+            "coupe": [],
+            "first": [],
         }
 
-        for carriage_type in config["CountCarriages"]:
-            count = int(config["CountSeatCarriages"][carriage_type])
+        for carriage_type in self.parser["CountCarriages"]:
+            count = int(self.parser["CountSeatCarriages"][carriage_type])
 
             for _ in range(count):
                 if carriage_type == "SeatCarriage":
-                    seats = int(config["CountSeatCarriages"]["SeatCarriage"])
-                    price = int(config["PriceCarriages"]["SeatCarriage"])
+                    seats = int(self.parser["CountSeatCarriages"]["SeatCarriage"])
+                    price = int(self.parser["PriceCarriages"]["SeatCarriage"])
                     carriages["seat"].append(SeatCarriage(seats, price))
                 elif carriage_type == "EconomCarriage":
-                    seats = int(config["CountSeatCarriages"]["EconomCarriage"])
-                    price = int(config["PriceCarriages"]["EconomCarriage"])
-                    carriages.append(EconomCarriage(seats, price))
+                    seats = int(self.parser["CountSeatCarriages"]["EconomCarriage"])
+                    price = int(self.parser["PriceCarriages"]["EconomCarriage"])
+                    carriages["econom"].append(EconomCarriage(seats, price))
                 elif carriage_type == "CoupeCarriage":
-                    seats = int(config["CountSeatCarriages"]["CoupeCarriage"])
-                    price = int(config["PriceCarriages"]["CoupeCarriage"])
-                    carriages.append(CoupeCarriage(seats, price))
+                    seats = int(self.parser["CountSeatCarriages"]["CoupeCarriage"])
+                    price = int(self.parser["PriceCarriages"]["CoupeCarriage"])
+                    carriages["coupe"].append(CoupeCarriage(seats, price))
                 elif carriage_type == "FirstClassCarriage":
-                    seats = int(config["CountSeatCarriages"]["FirstClassCarriage"])
-                    price = int(config["PriceCarriages"]["FirstClassCarriage"])
-                    carriages.append(FirstClassCarriage(seats, price))
+                    seats = int(self.parser["CountSeatCarriages"]["FirstClassCarriage"])
+                    price = int(self.parser["PriceCarriages"]["FirstClassCarriage"])
+                    carriages["first"].append(FirstClassCarriage(seats, price))
 
     def load_train(self, number):
-        self.parser = ConfigParser("Route.ini")
+        self.parser = ConfigParser()
+        self.parser.read("Route.ini", encoding="utf-8")
 
         return Train(
             number,
@@ -155,8 +153,13 @@ class TicketOffice:
         )
 
     def load_routes(self):
-        for key, value in self.parser["Shedule"]:
-            self.routes[int(key)] = Route(value, self.load_train(int(key)))
+        self.parser = ConfigParser()
+        self.parser.read("Route.ini", encoding="utf-8")
+
+        for key in self.parser["Shedule"]:
+            self.routes[int(key)] = Route(
+                self.parser["Shedule"][key], self.load_train(int(key))
+            )
 
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -166,7 +169,10 @@ class TicketOffice:
     def get_route(self, route_id):
         return self.routes[route_id]
 
+    def get_routers(self):
+        return self.routes
+
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-    def buy_ticket(self, route_id, carriage_id, seat_id):
-        self.trains.get(route_id).carriages.get(carriage_id)[seat_id].is_avaible = False
+    def buy_ticket(self, route_id, carriage_type):
+        self.trains.get(route_id).carriages[carriage_type][0].seats -= 1
